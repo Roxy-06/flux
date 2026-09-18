@@ -50,24 +50,31 @@ export default function NodeInspectorDrawer({
 
   useEffect(() => {
     if (activeTab === "code" && !codeData && !codeLoading) {
-      setCodeLoading(true);
-      setCodeError(null);
-      fetchFileContent(owner, repo, node.id)
-        .then((data) => {
-          setCodeData(data);
-          setCodeLoading(false);
-        })
-        .catch((err: unknown) => {
-          const msg = err instanceof Error ? err.message : "Failed to load source file.";
-          setCodeError(msg);
-          setCodeLoading(false);
-        });
+      const timer = window.setTimeout(() => {
+        setCodeLoading(true);
+        setCodeError(null);
+        fetchFileContent(owner, repo, node.id)
+          .then((data) => {
+            setCodeData(data);
+            setCodeLoading(false);
+          })
+          .catch((err: unknown) => {
+            const msg = err instanceof Error ? err.message : "Failed to load source file.";
+            setCodeError(msg);
+            setCodeLoading(false);
+          });
+      }, 0);
+      return () => window.clearTimeout(timer);
     }
+    return undefined;
   }, [activeTab, codeData, codeLoading, owner, repo, node.id]);
 
   useEffect(() => {
-    setCodeData(null);
-    setCodeError(null);
+    const timer = window.setTimeout(() => {
+      setCodeData(null);
+      setCodeError(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [node.id]);
 
   // Listens for Escape key to close the inspector drawer.

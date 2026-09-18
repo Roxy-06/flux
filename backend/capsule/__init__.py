@@ -1,0 +1,1 @@
+# CAPSULE system for portable project state management and AI tool context transfer

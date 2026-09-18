@@ -1,49 +1,51 @@
-# Flux
+# Amica
 
-Autonomous open-source onboarding and agentic issue resolution powered by Tree-sitter AST analysis, NetworkX graph theory, Google Gemini, and the Google Agent Development Kit (ADK).
+Context portability layer for AI coding tools powered by Tree-sitter AST analysis, NetworkX graph theory, Google Gemini, and the CAPSULE system for seamless project state transfer.
 
 ---
 
 ## Executive Summary
 
-New contributors to open-source projects face steep cognitive friction when parsing complex codebases, mapping issue tickets to concrete source files, and verifying architectural invariants before contributing.
+Developers increasingly use multiple AI coding tools across projects, losing context with each switch. New contributors to open-source projects face cognitive friction parsing complex codebases and mapping issues to source files.
 
-Flux provides an end-to-end pipeline that transforms any GitHub repository into an interactive structural dependency graph, generates grounded architectural summaries, pinpoints issue neighborhoods, and executes autonomous pull requests or structured implementation plans through a coordinated multi-agent system.
+Amica provides a SaaS layer that sits between developers and their AI coding tools (Claude, GPT, Gemini, GitHub Copilot). It transforms any GitHub repository into an interactive dependency graph, generates compact CAPSULE snapshots of project architecture and state, and enables seamless context portability between AI tools through MCP server integration.
 
 ---
 
 ## Key Differentiators and Architectural Strengths
 
-### 1. Multi-Language AST Parsing via Tree-sitter
+### 1. CAPSULE System - Portable Project State
+- Compact, portable project snapshots containing architecture, decisions, and current state
+- Seal/break-open workflow for seamless AI tool switching
+- Federated/hierarchical structure scales to large codebases
+- Code pointers (not code dumps) keep capsules lightweight
+
+### 2. MCP Server Integration
+- Exposes get_capsule, get_code, get_state_registry tools via Model Context Protocol
+- Compatible with Claude, GPT, Gemini, GitHub Copilot
+- Fallback JSON paste support when MCP unavailable
+- Minimizes token usage for context establishment
+
+### 3. Multi-Language AST Parsing via Tree-sitter
 - Extracts concrete syntax trees (CST/AST) across Python, JavaScript, TypeScript, Go, and Rust.
 - Identifies file-level imports, functions, classes, and exported symbols without executing code.
 - Eliminates regex heuristics in favor of deterministic grammar-based parsing.
 
-### 2. Graph-Theoretic Codebase Modeling with NetworkX
+### 4. Graph-Theoretic Codebase Modeling with NetworkX
 - Constructs a directed dependency graph representing import and invocation topologies.
 - Computes centrality metrics (in-degree, out-degree, degree centrality) to identify core architectural backbone files.
 - Applies Louvain community detection to automatically segment the codebase into functional clusters and modular boundaries.
 
-### 3. Grounded LLM Synthesis via Google Gemini
+### 5. Grounded LLM Synthesis via Google Gemini
 - Uses Google GenAI SDK (`defaults to:gemini-3.5-flash-lite`) with strict Pydantic structured schemas.
 - Ingests structured graph digests rather than raw unstructured code dumps, keeping token usage efficient and context grounded.
 - Features deterministic fallbacks ensuring offline resilience and reliability.
 
-### 4. 1-Hop Graph Neighborhood Issue Triage
-- Correlates issue descriptions with AST symbols and dependency paths.
-- Isolates 1-hop inbound and outbound neighbors around suspect files to prevent regressions.
-- Translates technical bugs into plain-English explanations, real-world analogies, and actionable implementation checklists.
-
-### 5. Hierarchical Multi-Agent System (Google ADK)
-- **Coordinator Agent**: Central dispatcher managing conversational turns and delegating specialized tasks.
-- **Summarizer Agent**: Generates architectural summaries, tech stack identification, and execution flows.
-- **Issue Explainer Agent**: Performs grounded issue localization and dependency-aware triage.
-- **Orchestrator Agent**: Executes code modifications with Human-in-the-Loop authorization.
-
-### 6. Deterministic Complexity Routing
-- Enforces an upfront complexity gate to distinguish between contained bug fixes and broad architectural refactors.
-- **Contained Diffs (<= 150 lines, <= 4 files)**: Clones/forks the repository, applies patches, validates changes, and publishes a cross-repository GitHub Pull Request.
-- **Complex Diffs (> 150 lines or cross-module refactors)**: Generates a comprehensive Implementation Plan Artifact containing affected modules, migration strategy, and testing guidelines.
+### 6. Enhanced Issue Visualization (Read-Only)
+- Correlates issue descriptions with AST symbols and dependency paths
+- Isolates 1-hop inbound and outbound neighbors around affected files
+- Animated graph highlighting shows issue blast radius
+- Plain-English explanations and architectural context
 
 ---
 
@@ -57,16 +59,17 @@ flowchart TD
     Graph --> Digest["Context Digest Builder"]
     Digest --> Gemini["Google Gemini (Structured Understanding & Feature Map)"]
     
-    Graph --> Triage["1-Hop Neighborhood Issue Triage"]
+    Graph --> Triage["1-Hop Neighborhood Issue Analysis"]
     Gemini --> Triage
     
-    Triage --> Gate{"Human-in-the-Loop Opt-In Gate"}
+    Triage --> Capsule["CAPSULE Generation (Project State + Code Pointers)"]
+    Capsule --> MCP["MCP Server (get_capsule, get_code, get_state_registry)"]
     
-    Gate -- "Authorized" --> ADK["Google ADK Multi-Agent Orchestrator"]
-    ADK --> Router{"Deterministic Complexity Router"}
-    
-    Router -- "<= 150 lines & <= 4 files" --> PR["Automated Fork & GitHub Pull Request"]
-    Router -- "> 150 lines or cross-module" --> Plan["Structured Implementation Plan Artifact"]
+    MCP --> Tools["AI Coding Tools"]
+    Tools --> Claude["Claude"]
+    Tools --> GPT["ChatGPT"] 
+    Tools --> Copilot["GitHub Copilot"]
+    Tools --> Gemini2["Gemini"]
 ```
 
 
@@ -75,10 +78,11 @@ flowchart TD
 ## Tech Stack
 
 - **Backend**: Python 3.12, FastAPI, Uvicorn, SQLite
-- **Agent Framework**: Google ADK (`google-adk`)
+- **CAPSULE System**: Project state management, MCP server integration
+- **MCP Server**: Model Context Protocol server (`python-mcp-sdk`)
 - **LLM & SDK**: Google Gemini (`gemini-3.5-flash-lite` via `google-genai`)
 - **Parsing & Graphs**: Tree-sitter (Python, JS/TS, Go, Rust), NetworkX, python-louvain
-- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4, Lucide React
+- **Frontend**: Next.js 16, React 19, TypeScript, Tailwind CSS 4, Lucide React, Web Speech API
 - **VCS & Integrations**: GitHub REST API v3, Git CLI
 
 ---
@@ -86,17 +90,15 @@ flowchart TD
 ## Repository Structure
 
 ```text
-flux/
+amica/
 ├── backend/
 │   ├── main.py                     # FastAPI application entrypoint
 │   ├── config.py                   # Central configuration and settings
 │   ├── requirements.txt            # Python dependencies
-│   ├── agent/                      # Google ADK multi-agent package
-│   │   ├── coordinator.py          # flux_root coordinator agent
-│   │   ├── runner.py               # Interactive agent runner and handoff engine
-│   │   ├── agents/                 # Specialized ADK subagents
-│   │   ├── tools/                  # ADK function tools
-│   │   └── workflow/               # Complexity router and handoff workflows
+│   ├── capsule/                    # CAPSULE system package
+│   │   ├── models.py               # CAPSULE data structures and schemas
+│   │   ├── generator.py            # CAPSULE generation and management
+│   │   └── mcp_server.py           # MCP server implementation
 │   ├── api/                        # REST API endpoints
 │   ├── models/                     # SQLite database models and Pydantic schemas
 │   ├── services/                   # AST parser, graph builder, and LLM services
@@ -104,11 +106,10 @@ flux/
 │   └── workspaces/                 # Local repository working directory
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                # Main dashboard application
-│   │   ├── components/             # React UI components
+│   │   ├── page.tsx                # Main dashboard application with voice input
+│   │   ├── components/             # React UI components with enhanced animations
 │   │   └── lib/api.ts              # Typed backend API client
 │   └── package.json
-├── AGENTS.md                       # Agent development and commenting rules
 └── README.md                       # Project documentation
 ```
 
@@ -136,6 +137,7 @@ Configure your environment variables:
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.5-flash-lite
 GITHUB_TOKEN=your_github_personal_access_token_here
+MCP_SERVER_PORT=3001
 ```
 
 ### 2. Backend Setup
@@ -156,6 +158,7 @@ uvicorn main:app --reload --host 127.0.0.1 --port 8000
 API Documentation:
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - Health Endpoint: `http://127.0.0.1:8000/api/health`
+- MCP Server: `http://127.0.0.1:3001` (when enabled)
 
 ### 3. Frontend Setup
 
@@ -181,9 +184,9 @@ cd backend
 ```
 
 Individual test modules:
-- `pytest tests/test_api.py -v`: REST API endpoints and health checks.
-- `pytest tests/test_services.py -v`: AST parsing, NetworkX graph modeling, and issue triage services.
-- `pytest tests/test_agent.py -v`: Google ADK multi-agent coordination, complexity routing, and handoff execution.
+- `pytest tests/test_api.py -v`: REST API endpoints, health checks, and CAPSULE operations.
+- `pytest tests/test_services.py -v`: AST parsing, NetworkX graph modeling, and CAPSULE generation services.
+- `pytest tests/test_capsule.py -v`: CAPSULE system functionality and MCP server integration.
 
 ---
 

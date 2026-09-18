@@ -1,7 +1,7 @@
-// Main application page for FLUX codebase architecture and synthesis.
+// Main application page for AMICA codebase context portability and AI tool integration.
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import Image from "next/image";
 import {
   ingestRepository,
@@ -13,11 +13,13 @@ import {
   GraphResponse,
   RepoUnderstanding,
   IssueSummary,
-  IssueExplanation,
 } from "./lib/api";
 import ObsidianGraphCanvas from "./components/ObsidianGraphCanvas";
 import IssueExplorer from "./components/IssueExplorer";
 import AgentHandoffModal from "./components/AgentHandoffModal";
+import VoiceInput from "./components/VoiceInput";
+import DarkModeToggle from "./components/DarkModeToggle";
+import CapsuleManager from "./components/CapsuleManager";
 import {
   GitBranch,
   Star,
@@ -30,8 +32,10 @@ import {
   ArrowRight,
   Play,
   Search,
-  Activity,
   FolderGit2,
+  Package,
+  Zap,
+  Network,
 } from "lucide-react";
 
 // Main component managing repository ingestion, architecture graph, and issue explorer.
@@ -40,7 +44,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [repo, setRepo] = useState<RepoMetadata | null>(null);
-  const [mainTab, setMainTab] = useState<"graph" | "understanding" | "issues" | "docs">("graph");
+  const [mainTab, setMainTab] = useState<"graph" | "understanding" | "issues" | "capsule" | "docs">("graph");
   const [docsTab, setDocsTab] = useState<"readme" | "contributing">("readme");
 
   // Graph State
@@ -60,12 +64,41 @@ export default function Home() {
 
   // Agent Handoff State
   const [handoffIssue, setHandoffIssue] = useState<IssueSummary | null>(null);
-  const [handoffExplanation, setHandoffExplanation] = useState<IssueExplanation | null>(null);
   const [isHandoffModalOpen, setIsHandoffModalOpen] = useState(false);
+
+  // Voice input state
+  const [voiceInputEnabled, setVoiceInputEnabled] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  // CAPSULE and MCP server state
+  const [capsule, setCapsule] = useState<any>(null);
+  const [mcpServerRunning, setMcpServerRunning] = useState(false);
 
   // Pipeline tracking
   const [autoPipelineRunning, setAutoPipelineRunning] = useState(false);
   const [autoPipelineStep, setAutoPipelineStep] = useState<string>("");
+
+  // Voice input handlers
+  const handleVoiceTranscript = (text: string) => {
+    // Use voice input to fill repo URL or trigger search
+    if (text.toLowerCase().includes('github.com/') || text.includes('/')) {
+      setRepoUrl(text);
+    } else {
+      // Try to construct GitHub URL from voice input
+      const cleanText = text.replace(/[^a-zA-Z0-9\/\-_]/g, '');
+      if (cleanText.includes('/')) {
+        setRepoUrl(`https://github.com/${cleanText}`);
+      } else {
+        setVoiceError('Please say a GitHub repository in format "owner/repo" or full URL');
+      }
+    }
+    setVoiceError(null);
+  };
+
+  const handleVoiceError = (error: string) => {
+    setVoiceError(error);
+    setTimeout(() => setVoiceError(null), 5000);
+  };
 
   // Executes autonomous multi-phase ingestion, graph construction, and AI synthesis pipeline.
   const handleAutoPipeline = async (overrideUrl?: string) => {
@@ -240,9 +273,9 @@ export default function Home() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-extrabold tracking-tight text-[#171817] group-hover:text-[#df7d4c] transition-colors">FLUX</span>
+            <span className="text-lg font-extrabold tracking-tight text-[#171817] group-hover:text-[#df7d4c] transition-colors">AMICA</span>
             <span className="text-[10px] font-code px-2 py-0.5 bg-[#df7d4c]/15 text-[#df7d4c] rounded-md font-bold">
-              Studio
+              Context
             </span>
           </div>
         </div>
@@ -284,53 +317,85 @@ export default function Home() {
           {/* Hero Headlines */}
           <div className="space-y-4 max-w-2xl">
             <h1 className="text-4xl sm:text-6xl font-extrabold text-[#171817] tracking-tight leading-tight">
-              Understand Any Codebase in{" "}
+              Portable Context for{" "}
               <span className="text-[#df7d4c] underline decoration-[#df7d4c]/40 decoration-wavy underline-offset-8">
-                Seconds
+                AI Tools
               </span>
             </h1>
             <p className="text-sm sm:text-base text-[#6b6963] leading-relaxed max-w-xl mx-auto">
-              Explore complex repository architectures, trace AST dependency networks, and solve issues autonomously with grounded AI synthesis.
+              Generate CAPSULE snapshots of your project architecture and seamlessly switch between Claude, GPT, Gemini, and GitHub Copilot without losing context.
             </p>
           </div>
 
           {/* Centered Glowing Ingest Card */}
           <div className="flux-search-panel w-full max-w-2xl akaru-card p-5 sm:p-7 shadow-2xl space-y-5">
-            <form onSubmit={handleIngest} className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative flex items-center bg-[#fffefa] border border-[rgba(23,24,23,0.15)] rounded-2xl focus-within:border-[#df7d4c] focus-within:ring-2 focus-within:ring-[#df7d4c]/20 shadow-xs transition-all">
-                <div className="pl-4 pr-2 text-[#df7d4c] flex items-center">
-                  <FolderGit2 className="w-5 h-5" />
+            <form onSubmit={handleIngest} className="flex flex-col gap-4">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1 relative flex items-center bg-[#fffefa] border border-[rgba(23,24,23,0.15)] rounded-2xl focus-within:border-[#df7d4c] focus-within:ring-2 focus-within:ring-[#df7d4c]/20 shadow-xs transition-all">
+                  <div className="pl-4 pr-2 text-[#df7d4c] flex items-center">
+                    <FolderGit2 className="w-5 h-5" />
+                  </div>
+                  <input
+                    type="text"
+                    value={repoUrl}
+                    onChange={(e) => setRepoUrl(e.target.value)}
+                    placeholder="https://github.com/owner/repository or owner/repo"
+                    aria-label="GitHub repository URL"
+                    disabled={loading || autoPipelineRunning}
+                    className="flex-1 py-3.5 bg-transparent text-sm text-[#171817] placeholder-[rgba(23,24,23,0.4)] focus:outline-none font-code disabled:opacity-50"
+                    required
+                  />
                 </div>
-                <input
-                  type="text"
-                  value={repoUrl}
-                  onChange={(e) => setRepoUrl(e.target.value)}
-                  placeholder="https://github.com/owner/repository or owner/repo"
-                  aria-label="GitHub repository URL"
-                  disabled={loading || autoPipelineRunning}
-                  className="flex-1 py-3.5 bg-transparent text-sm text-[#171817] placeholder-[rgba(23,24,23,0.4)] focus:outline-none font-code disabled:opacity-50"
-                  required
-                />
+
+                {/* Action Buttons */}
+                <div className="flex gap-2.5 shrink-0">
+                  <button
+                    type="submit"
+                    disabled={loading || autoPipelineRunning || !repoUrl.trim()}
+                    className="btn-white px-5 py-3.5 text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading && !autoPipelineRunning ? "Ingesting..." : "Ingest"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAutoPipeline()}
+                    disabled={loading || autoPipelineRunning || !repoUrl.trim()}
+                    className="btn-terracotta px-6 py-3.5 text-xs font-extrabold cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>{autoPipelineRunning ? "Analyzing..." : "Generate CAPSULE"}</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-2.5 shrink-0">
-                <button
-                  type="submit"
-                  disabled={loading || autoPipelineRunning || !repoUrl.trim()}
-                  className="btn-white px-5 py-3.5 text-xs font-bold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading && !autoPipelineRunning ? "Ingesting..." : "Ingest"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAutoPipeline()}
-                  disabled={loading || autoPipelineRunning || !repoUrl.trim()}
-                  className="btn-terracotta px-6 py-3.5 text-xs font-extrabold cursor-pointer flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>{autoPipelineRunning ? "Analyzing..." : "Full Analysis"}</span>
-                </button>
+              {/* Voice Input Section */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-semibold text-gray-700">Voice Input</label>
+                  <button
+                    type="button"
+                    onClick={() => setVoiceInputEnabled(!voiceInputEnabled)}
+                    className="text-xs text-[#df7d4c] hover:text-[#bf6d3c] font-medium"
+                  >
+                    {voiceInputEnabled ? 'Hide' : 'Enable'} Voice
+                  </button>
+                </div>
+                
+                {voiceInputEnabled && (
+                  <VoiceInput
+                    onTranscript={handleVoiceTranscript}
+                    onError={handleVoiceError}
+                    placeholder="Say a GitHub repository like 'owner/repo'"
+                    disabled={loading || autoPipelineRunning}
+                    className="w-full"
+                  />
+                )}
+                
+                {voiceError && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-xs text-red-600">{voiceError}</p>
+                  </div>
+                )}
               </div>
             </form>
 
@@ -380,31 +445,31 @@ export default function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 w-full max-w-3xl pt-6 text-left">
             <div className="akaru-card-sm p-5 space-y-2.5 bg-[#fffefa] border border-[rgba(23,24,23,0.12)] rounded-2xl shadow-xs">
               <div className="w-9 h-9 rounded-xl bg-[#df7d4c]/15 text-[#df7d4c] flex items-center justify-center font-bold">
-                <Layers className="w-4 h-4" />
+                <Package className="w-4 h-4" />
               </div>
-              <h3 className="font-extrabold text-[#171817] text-sm">AST Dependency Graph</h3>
+              <h3 className="font-extrabold text-[#171817] text-sm">CAPSULE System</h3>
               <p className="text-xs text-[#6b6963] leading-relaxed">
-                Explore static code structure with continuous network energy pulses and callers tracking.
+                Portable project snapshots with architecture, decisions, and state for seamless AI tool switching.
               </p>
             </div>
 
             <div className="akaru-card-sm p-5 space-y-2.5 bg-[#fffefa] border border-[rgba(23,24,23,0.12)] rounded-2xl shadow-xs">
               <div className="w-9 h-9 rounded-xl bg-[#df7d4c]/15 text-[#df7d4c] flex items-center justify-center font-bold">
-                <CloudCog className="w-4 h-4" strokeWidth={2.25} />
+                <Network className="w-4 h-4" strokeWidth={2.25} />
               </div>
-              <h3 className="font-extrabold text-[#171817] text-sm">Grounded Intelligence</h3>
+              <h3 className="font-extrabold text-[#171817] text-sm">MCP Integration</h3>
               <p className="text-xs text-[#6b6963] leading-relaxed">
-                Plain-English architecture flows and feature maps synthesized from AST source files.
+                Model Context Protocol server for Claude, GPT, Gemini, and GitHub Copilot compatibility.
               </p>
             </div>
 
             <div className="akaru-card-sm p-5 space-y-2.5 bg-[#fffefa] border border-[rgba(23,24,23,0.12)] rounded-2xl shadow-xs">
               <div className="w-9 h-9 rounded-xl bg-[#df7d4c]/15 text-[#df7d4c] flex items-center justify-center font-bold">
-                <CircleDot className="w-4 h-4" />
+                <Zap className="w-4 h-4" />
               </div>
-              <h3 className="font-extrabold text-[#171817] text-sm">Autonomous Fixes</h3>
+              <h3 className="font-extrabold text-[#171817] text-sm">Context Portability</h3>
               <p className="text-xs text-[#6b6963] leading-relaxed">
-                Translate bug reports into verified multi-file code diffs and GitHub Pull Requests.
+                Minimize token usage for context establishment so more budget goes to actual coding work.
               </p>
             </div>
           </div>
@@ -547,6 +612,20 @@ export default function Home() {
             >
               <CircleDot className="w-4 h-4" />
               <span>Issue Resolution</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mainTab === "capsule"}
+              onClick={() => setMainTab("capsule")}
+              className={`pb-3.5 px-4 transition-all cursor-pointer flex items-center gap-2 border-b-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#df7d4c] ${
+                mainTab === "capsule"
+                  ? "text-[#df7d4c] border-[#df7d4c]"
+                  : "text-[#6b6963] border-transparent hover:text-[#171817]"
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>CAPSULE</span>
             </button>
 
             <button
@@ -756,12 +835,17 @@ export default function Home() {
               owner={repo.owner}
               repo={repo.name}
               onSelectFile={handleJumpToNode}
-              onPrepareAgentHandoff={(selectedIssue, exp) => {
-                setHandoffIssue(selectedIssue);
-                setHandoffExplanation(exp);
-                setIsHandoffModalOpen(true);
+              onHighlightIssue={(issue) => {
+                // TODO: Implement graph highlighting animation for issue blast radius
+                console.log('Highlighting issue in graph:', issue.title);
               }}
             />
+          )}
+
+          
+          {/* TAB 3.5: CAPSULE Manager */}
+          {mainTab === "capsule" && repo && (
+            <CapsuleManager owner={repo.owner} repo={repo.name} />
           )}
 
           {/* TAB 4: Documentation */}
@@ -816,7 +900,6 @@ export default function Home() {
               owner={repo.owner}
               repo={repo.name}
               issue={handoffIssue}
-              explanation={handoffExplanation}
             />
           )}
         </div>
@@ -824,3 +907,8 @@ export default function Home() {
     </main>
   );
 }
+
+
+
+
+

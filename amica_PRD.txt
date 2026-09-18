@@ -1,0 +1,365 @@
+AMICA — PRODUCT REQUIREMENTS DOCUMENT (PRD)
+================================================================================
+
+STATUS: v1 PRD, reflecting the finalized product direction. This
+supersedes the "repo-to-PR agent" pipeline direction — the auto-fix +
+PR-generation feature is explicitly cut (see Section 3).
+
+
+================================================================================
+1. PRODUCT SUMMARY
+================================================================================
+
+Amica is a SaaS layer that sits between a developer and whichever AI
+coding tool they're using (Claude, GPT, Gemini, or others). Paste a
+GitHub repo URL and Amica shows an animated dependency graph of the
+codebase and its open issues, with the files each issue touches
+highlighted. Its core function is the CAPSULE: a compact, portable
+snapshot of a project's architecture, state, and decisions that can be
+sealed in one AI tool and broken open in another — so switching tools
+mid-task doesn't mean re-explaining the project from scratch, and most
+of a session's tokens go toward actually writing and debugging code
+instead of re-establishing context.
+
+
+================================================================================
+2. PROBLEM STATEMENT
+================================================================================
+
+Developers increasingly use multiple AI coding tools across a single
+project (hit a usage limit on one, switch to another; or deliberately
+use different tools for different strengths). Each switch currently
+costs:
+  - Re-explaining the project's architecture and current state manually
+  - Burning a large fraction of the new session's context/tokens just
+    to catch the new tool up, before any real work happens
+  - Losing precise mid-task state (what was just attempted, what
+    failed, what's next) — the new tool only gets whatever the
+    developer remembers to type
+
+This is a live, unsolved industry gap. Partial related efforts exist
+(AGENTS.md as a static project-guidance convention, single-tool
+codebase indexing in tools like Cursor) but nothing currently carries
+FULL project state — architecture, decisions, in-progress work — in a
+compact, portable form between different AI tools.
+
+Core philosophy: "AI coding tools have memory. They don't have
+portable project state."
+
+
+================================================================================
+3. GOALS AND NON-GOALS
+================================================================================
+
+3.1 Goals (in scope)
+--------------------------------------------------------------------------
+  - Visualize a repo's architecture as an animated, explorable
+    dependency graph.
+  - Surface open issues and which files/modules each one touches.
+  - Generate and maintain the CAPSULE — the portable state/context
+    format — as the product's core mechanism.
+  - Deliver the capsule to any MCP-compatible AI tool via an MCP
+    server, so the target tool can pull exact code on demand using the
+    capsule as an index (not receive a code dump).
+  - Minimize the number of tokens a user spends re-establishing context
+    when switching AI tools, so more of their budget goes to actual
+    coding/debugging work.
+  - Support dark/light mode and a polished, highly-animated (but not
+    cluttered) graph UI with hover interactions.
+  - Support voice input (speech-to-text) for hands-free prompting into
+    the product's own interface.
+
+3.2 Non-goals (explicitly cut)
+--------------------------------------------------------------------------
+  - Automated issue-fixing agent that writes a patch and opens a PR.
+    THIS FEATURE IS REMOVED from the product as of this PRD. Amica
+    shows issues and their related files/modules — it does not attempt
+    to resolve them autonomously. Reasoning: this was the least
+    differentiated part of the product (direct overlap with GitHub
+    Copilot Workspace, Sweep AI, Cursor Bugbot) and the highest-risk
+    part to build reliably; removing it sharpens the product back to
+    its actual differentiated core, the capsule.
+  - Amica does not itself generate code or resolve bugs. It hands off
+    to whichever AI tool the user is already using, via the capsule +
+    MCP server. Amica's job is context portability, not code
+    generation.
+  - Full autonomous multi-agent orchestration across tools. Amica is a
+    context/state layer, not an agent framework.
+
+
+================================================================================
+4. TARGET USER
+================================================================================
+
+A developer (or small team) actively building a project with AI coding
+assistance, who:
+  - Uses more than one AI coding tool across a project's lifetime
+    (by choice, or forced by hitting usage limits on a free/lower tier)
+  - Wants a clear visual map of a codebase's structure and open issues
+    without manually reading through everything
+  - Is frustrated by re-explaining project context every time they
+    switch tools
+
+
+================================================================================
+5. FEATURE SPECIFICATION
+================================================================================
+
+5.1 Repo scan and dependency graph
+--------------------------------------------------------------------------
+  - Input: paste a GitHub URL.
+  - Output: clone/parse the repo, generate a digest summary, and render
+    an animated, node-based dependency graph of modules/features.
+  - Graph requirements (explicit, per product direction):
+    - Highly animated — but animation must be purposeful, not
+      decorative clutter. Recommended approach: animate the
+      "blast radius" of a selected issue (a pulse traveling along the
+      edges of modules that issue touches), rather than an always-on
+      global glow across every edge. Constant full-graph animation
+      reads as noise, not insight, in a live demo.
+    - Clear and precise at rest — hierarchical node structure
+      (project -> category -> module), not a flat hairball of every
+      function. Node size/weight should scale with connectivity so
+      architectural importance is visible at a glance.
+    - On-hover effects on nodes and edges (highlight connected paths,
+      surface a quick-preview tooltip before a full click-through).
+    - 3D rendering: desirable, but treat as a stretch goal layered on
+      top of a working, well-animated 2D graph — not a prerequisite.
+      A 3D force-directed graph (e.g. via a library like
+      react-force-graph-3d, built on three.js) adds real implementation
+      and performance-tuning time; build and validate the 2D animated
+      version first, upgrade to 3D only if schedule allows. Shipping a
+      laggy or disorienting 3D graph is a worse demo outcome than a
+      crisp, well-animated 2D one.
+    - Respect prefers-reduced-motion for accessibility.
+
+5.2 Issue display (NOT auto-fix)
+--------------------------------------------------------------------------
+  - Pull open issues from the GitHub API.
+  - Enrich each issue with: which modules/files it likely touches
+    (surfaced via the dependency graph + a lightweight relevance pass),
+    a complexity estimate, and duplicate-issue flagging.
+  - Selecting an issue highlights/animates the relevant portion of the
+    graph (ties directly to 5.1's animation approach).
+  - No fix generation, no patch writing, no PR creation — display and
+    context-surfacing only, per Section 3.2.
+
+5.3 The Capsule (core feature)
+--------------------------------------------------------------------------
+  Design rule for every field: does an AI tool need this to continue
+  correctly, or is it just interesting history? History does not go in
+  — this is what keeps the capsule compact.
+
+  Capsule contents:
+    1. Project intent — short distilled goal statement
+    2. Architecture graph — modules/components + connections
+    3. Component contracts — inputs/outputs/dependencies (mechanical,
+       AST-derived) plus guarantees/constraints (semantic, inferred
+       from docstrings/types/tests where available)
+    4. Tech stack + pinned versions
+    5. State registry — what's done / in-progress / stubbed, including
+       current task, last attempt, and blockers for in-progress items
+       (this is the single highest-value field for a mid-task tool
+       switch)
+    6. Decision log — compact, ADR-style, never a full transcript
+    7. Known issues / fallbacks already tried
+    8. Code pointers — file + function/class (+ ideally commit hash)
+       for every component and state-registry entry. The capsule
+       REFERENCES code, it does not contain code.
+
+  Explicitly excluded: raw prompt/response history. It bloats size for
+  no benefit — everything useful is already distilled into the fields
+  above.
+
+  Seal / break-open mechanic:
+    - SEALING: capsule is regenerated from current project state
+      (re-parse, update state registry, append new decisions) — a
+      compression step, not an export of conversation history.
+    - BREAKING OPEN: the receiving AI tool reads the capsule's
+      structured fields directly, and — critically — gets access to an
+      MCP server exposing the underlying repo, so it can pull the EXACT
+      code a pointer references on demand, rather than receiving a code
+      dump. This is what makes the capsule stay compact regardless of
+      project size at the per-module level: it's an index, not a copy.
+
+5.4 MCP server (delivery mechanism)
+--------------------------------------------------------------------------
+  - Exposes tools such as: get_capsule, get_code(file, function),
+    get_state_registry.
+  - Any MCP-compatible client can connect: as of 2026, MCP is a
+    cross-vendor standard, not an Anthropic-only protocol — ChatGPT,
+    Gemini, Claude, and GitHub Copilot all support it natively, under
+    joint governance via the Agentic AI Foundation (Linux Foundation).
+    This directly validates the "one capsule, any AI tool" claim — it
+    is building on infrastructure that already exists across the
+    ecosystem, not proposing a new one.
+  - Fallback: if a live MCP connection isn't available in a given
+    context, the capsule JSON can be pasted directly into any chat
+    interface and still provides full structured context — MCP adds
+    live code retrieval on top of that, it isn't required for the
+    capsule's core value.
+
+5.5 Multi-tool generalization
+--------------------------------------------------------------------------
+  - Amica does not assume any single AI tool. The capsule format and
+    MCP server are vendor-agnostic by design.
+  - Product framing: "one place that understands your whole project,
+    usable from Claude, GPT, Gemini, or whatever you switch to next."
+
+5.6 UI requirements
+--------------------------------------------------------------------------
+  - Dark mode / light mode toggle. Light mode is the current default
+    and should remain fully supported, not deprecated.
+  - Animated graph per Section 5.1.
+  - Voice input: speech-to-text for Amica's own input fields (e.g.
+    describing what you want, searching the graph), using the
+    browser's native Web Speech API for the hackathon build — free, no
+    extra service dependency, fast to implement. Note: browser support
+    is strongest in Chromium-based browsers; Safari support is partial.
+    This is a convenience input method, not a voice-command/intent
+    system — Amica transcribes speech to text and treats it exactly
+    like typed input, it does not parse spoken commands into special
+    actions.
+
+
+================================================================================
+6. THE SCALING PROBLEM — BRAINSTORMED SOLUTION
+================================================================================
+
+6.1 The problem, stated precisely
+--------------------------------------------------------------------------
+A flat capsule (one entry per module) works fine at hackathon-demo
+scale — dozens of modules. At production scale — a codebase with
+hundreds of thousands to millions of lines, realistically hundreds or
+thousands of modules — a flat index stops being compact, and the
+per-module semantic contract inference (one LLM call per important
+module) stops being cheap or fast. This was the exact gap a reviewing
+professor correctly identified: even an index has to scale with project
+size eventually, and "index not copy" alone doesn't answer how.
+
+6.2 Proposed solution: federated / hierarchical capsules
+--------------------------------------------------------------------------
+Apply the same "retrieve, don't dump" principle that already governs
+the decision log and code pointers — to the capsule's own structure,
+recursively.
+
+  STRUCTURE:
+    - A TOP-LEVEL (meta) capsule contains: project intent, tech stack,
+      and an INDEX of subsystems — each subsystem entry is just a name,
+      a one-line summary, a pointer/hash to its own child capsule, and
+      its connectivity to other subsystems. It does NOT contain full
+      state registries or contracts for every module in the project.
+    - Each SUBSYSTEM has its OWN child capsule, structured exactly like
+      the current single-project capsule design (Section 5.3), but
+      scoped only to that subsystem's modules.
+    - If a subsystem is itself large enough to strain a single capsule,
+      it recurses again (sub-subsystem capsules) — bounded by a
+      configurable token/size budget per capsule level, not by a fixed
+      depth limit.
+
+  LOADING BEHAVIOR:
+    - When an AI tool breaks open a capsule to work on a specific task,
+      it loads the TOP-LEVEL capsule first (cheap — just the index),
+      then loads ONLY the child capsule(s) for the subsystem(s) it's
+      actually working in. Untouched subsystems stay referenced but
+      unexpanded.
+    - This mirrors exactly how the code-pointer mechanism already
+      avoids dumping full code — applied one layer up, to the capsule
+      structure itself.
+
+  DETERMINING SUBSYSTEM BOUNDARIES:
+    - Rather than requiring a human to manually define subsystem
+      boundaries (which doesn't scale to large codebases either),
+      subsystem boundaries can be computed automatically via community
+      detection on the dependency graph already being built for the
+      visualization feature (e.g. Louvain clustering or similar
+      graph-partitioning algorithms) — modules that are densely
+      interconnected with each other and sparsely connected to the rest
+      of the codebase get grouped into the same subsystem. This is a
+      legitimate, well-established graph-theory technique, not a novel
+      claim requiring separate validation, and it reuses data the
+      product is already computing for Section 5.1 — it isn't a
+      separate system to build.
+
+  KEEPING IT CURRENT AT SCALE:
+    - Only re-generate the child capsule for a subsystem that actually
+      changed, not the whole project's capsule tree, on each update.
+      This keeps incremental updates cheap regardless of total project
+      size — cost scales with the size of the change, not the size of
+      the codebase.
+
+6.3 Honest framing for this solution
+--------------------------------------------------------------------------
+This is a proposed architecture, not yet a built-and-measured feature.
+For the hackathon build, target small-to-medium codebases (the
+single-level capsule from Section 5.3 is sufficient and is what should
+actually be built and demoed). The federated approach in this section
+is the answer to give when asked "how does this scale to a huge
+codebase" — a credible, specific technical direction — not a claim that
+it's already implemented. State it this way explicitly if asked; do not
+imply it's already working at that scale.
+
+
+================================================================================
+7. TECHNICAL ARCHITECTURE (summary — see amica_architecture_blueprint.txt
+   for full file-level detail, still valid except for the removed
+   fix-agent/PR components)
+================================================================================
+
+  Frontend: Next.js (App Router, TypeScript), React Flow for the graph
+    (2D baseline, evaluate a 3D upgrade via react-force-graph-3d /
+    three.js if time allows), Tailwind CSS with dark/light theming,
+    Web Speech API for voice input.
+  Backend: FastAPI (Python), SQLite via SQLModel (upgrade path to
+    Postgres if the federated capsule structure is pursued beyond the
+    hackathon), GitPython for repo operations.
+  AST parsing: Python's built-in `ast` module for the initial build's
+    target language; contract inference layer uses the Anthropic API.
+  MCP server: Python MCP SDK, exposing get_capsule / get_code /
+    get_state_registry as described in Section 5.4.
+  GitHub integration: REST API via a scoped PAT for the hackathon
+    build (read issues, read repo metadata) — no write/PR operations
+    needed now that auto-fix is out of scope, which simplifies the
+    GitHub integration considerably versus the earlier pipeline
+    direction.
+
+  REMOVED from the architecture as a direct result of Section 3.2:
+    - fix_agent.py / solution_agent.py / verifier.py (the issue-
+      resolution agent chain)
+    - runs / pull_requests tables and their API routes
+    - PR-related GitHub write scopes — only read access is now needed
+
+
+================================================================================
+8. SUCCESS CRITERIA FOR THE DEMO
+================================================================================
+  - Paste a real repo URL, graph renders and animates correctly.
+  - Selecting an issue visibly animates the relevant portion of the
+    graph.
+  - A capsule can be sealed from the current project state and broken
+    open in a second AI tool (two different tools shown, not
+    necessarily every vendor).
+  - The second AI tool, given only the capsule + MCP access, correctly
+    continues a specific in-progress task without manual re-explanation.
+  - A real, measured (not estimated) token-count comparison is shown:
+    traditional context transfer vs. capsule-based transfer.
+  - Dark/light toggle and voice input both work live, without being
+    the centerpiece of the demo — they're polish, the capsule
+    hand-off is the centerpiece.
+
+
+================================================================================
+9. OPEN QUESTIONS / RISKS
+================================================================================
+  - 3D graph rendering may not fit the timeline — decide by a fixed
+    checkpoint (see build docs) whether to attempt it or ship the 2D
+    animated version as final.
+  - Federated capsule structure (Section 6) is a proposed answer to a
+    real scaling question, not yet implemented or measured — be
+    prepared to present it as a designed solution, not a demoed one.
+  - Removing the auto-fix/PR feature sharpens the product's
+    differentiation versus DeepWiki/Copilot Workspace/Sweep/Bugbot, but
+    the graph-visualization-plus-issues piece alone still overlaps with
+    DeepWiki's core offering — the capsule and multi-tool MCP delivery
+    remain the product's primary differentiation and should be the
+    centerpiece of the pitch, not the graph.

@@ -3,7 +3,7 @@
 // Interactive AST dependency network explorer canvas with warm gallery styling.
 
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react";
-import { GraphResponse, GraphNode, GraphEdge } from "../lib/api";
+import { GraphResponse, GraphNode } from "../lib/api";
 import NodeInspectorDrawer from "./NodeInspectorDrawer";
 import {
   Search,
@@ -12,10 +12,6 @@ import {
   Plus,
   Minus,
   Filter,
-  Layers,
-  ArrowRight,
-  Activity,
-  FileCode,
 } from "lucide-react";
 
 interface ObsidianGraphCanvasProps {
@@ -245,10 +241,13 @@ export default function ObsidianGraphCanvas({
 
     nodesRef.current = simNodes;
     edgesRef.current = simEdges;
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-    setSelectedNode(null);
-    setHoveredNode(null);
+    const timer = window.setTimeout(() => {
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+      setSelectedNode(null);
+      setHoveredNode(null);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [graph]);
 
   // Centers viewport on a specific node with smooth animation and zoom scale.
@@ -291,12 +290,12 @@ export default function ObsidianGraphCanvas({
     if (!target) return new Set<string>();
     const set = new Set<string>();
     set.add(target.id);
-    edgesRef.current.forEach((e) => {
+    graph.edges.forEach((e) => {
       if (e.source === target.id) set.add(e.target);
       if (e.target === target.id) set.add(e.source);
     });
     return set;
-  }, [hoveredNode, selectedNode]);
+  }, [graph.edges, hoveredNode, selectedNode]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];

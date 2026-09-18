@@ -4,7 +4,6 @@
 import React, { useState, useEffect } from "react";
 import {
   IssueSummary,
-  IssueExplanation,
   AgentHandoffResponse,
   triggerAgentHandoff,
   publishPullRequest,
@@ -15,7 +14,6 @@ import {
 import {
   Bot,
   GitPullRequest,
-  Terminal,
   Copy,
   Check,
   ExternalLink,
@@ -35,7 +33,6 @@ interface AgentHandoffModalProps {
   owner: string;
   repo: string;
   issue: IssueSummary;
-  explanation?: IssueExplanation | null;
 }
 
 type HandoffStep = "opt_in" | "fork" | "synthesizing" | "routing" | "completed" | "error";
@@ -51,7 +48,6 @@ export default function AgentHandoffModal({
   owner,
   repo,
   issue,
-  explanation,
 }: AgentHandoffModalProps) {
   const [step, setStep] = useState<HandoffStep>("opt_in");
   const [optInConfirmed, setOptInConfirmed] = useState(true);

@@ -1,4 +1,4 @@
-// API client module for interacting with the flux FastAPI backend.
+// API client module for interacting with the Amica FastAPI backend.
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://127.0.0.1:8000";
 
 export interface RepoMetadata {
@@ -547,3 +547,315 @@ export async function chatWithAgent(
   return response.json();
 }
 
+
+// ========================================
+// CAPSULE System API Functions
+// ========================================
+
+export interface CapsuleMetadata {
+  capsule_id: string;
+  project_name: string;
+  project_repo?: string;
+  version: string;
+  created_at: string;
+  updated_at: string;
+  created_by?: string;
+  total_components: number;
+  total_tasks: number;
+  total_decisions: number;
+}
+
+export interface CodePointer {
+  file_path: string;
+  line_start?: number;
+  line_end?: number;
+  function_name?: string;
+  class_name?: string;
+  commit_hash?: string;
+}
+
+export interface ComponentContract {
+  component_id: string;
+  component_type: string;
+  name: string;
+  inputs: string[];
+  outputs: string[];
+  dependencies: string[];
+  guarantees: string[];
+  constraints: string[];
+  code_pointer: CodePointer;
+}
+
+export interface StateRegistryEntry {
+  task_id: string;
+  task_description: string;
+  state: "done" | "in_progress" | "stubbed" | "blocked";
+  current_attempt?: string;
+  last_attempt?: string;
+  blockers: string[];
+  progress_notes: string[];
+  related_components: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DecisionLogEntry {
+  decision_id: string;
+  title: string;
+  context: string;
+  decision: string;
+  rationale: string;
+  consequences: string[];
+  alternatives_considered: string[];
+  decided_at: string;
+  decided_by?: string;
+  status: string;
+}
+
+export interface ArchitectureGraph {
+  nodes: any[];
+  edges: any[];
+  clusters: any[];
+  centrality_metrics: Record<string, number>;
+  community_structure: Record<string, string[]>;
+}
+
+export interface Capsule {
+  metadata: CapsuleMetadata;
+  project_intent: string;
+  architecture: ArchitectureGraph;
+  components: ComponentContract[];
+  tech_stack: Record<string, string>;
+  state_registry: StateRegistryEntry[];
+  decisions: DecisionLogEntry[];
+  known_issues: any[];
+  code_index: Record<string, CodePointer>;
+}
+
+export interface CapsuleResponse {
+  status: string;
+  repository: { owner: string; name: string };
+  capsule: Capsule;
+  size_info: {
+    total_components: number;
+    total_tasks: number;
+    total_decisions: number;
+    total_issues: number;
+  };
+}
+
+// Generates a CAPSULE for the specified repository
+export async function generateCapsule(
+  owner: string,
+  repo: string,
+  options: {
+    regenerate?: boolean;
+    include_subsystems?: string[];
+  } = {}
+): Promise<CapsuleResponse> {
+  const response = await fetch(`${BACKEND_URL}/api/repos/${owner}/${repo}/capsule`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      regenerate: options.regenerate || false,
+      include_subsystems: options.include_subsystems || null,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to generate CAPSULE");
+  }
+
+  return response.json();
+}
+
+// Retrieves existing CAPSULE for repository
+export async function getCapsule(owner: string, repo: string): Promise<CapsuleResponse> {
+  const response = await fetch(`${BACKEND_URL}/api/repos/${owner}/${repo}/capsule`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to retrieve CAPSULE");
+  }
+
+  return response.json();
+}
+
+// Updates the state registry in a repository's CAPSULE
+export async function updateCapsuleState(
+  owner: string,
+  repo: string,
+  taskUpdates: Array<{
+    task_id: string;
+    task_description?: string;
+    state?: "done" | "in_progress" | "stubbed" | "blocked";
+    current_attempt?: string;
+    last_attempt?: string;
+    blockers?: string[];
+    progress_notes?: string[];
+    related_components?: string[];
+  }>
+): Promise<{ status: string; message: string; updated_at: string }> {
+  const response = await fetch(`${BACKEND_URL}/api/repos/${owner}/${repo}/capsule/state`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      task_updates: taskUpdates,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to update CAPSULE state");
+  }
+
+  return response.json();
+}
+
+// Exports CAPSULE as JSON for manual paste into AI tools
+export async function exportCapsuleJson(owner: string, repo: string): Promise<{
+  status: string;
+  format: string;
+  size_bytes: number;
+  capsule_json: string;
+  usage_instructions: string[];
+}> {
+  const response = await fetch(`${BACKEND_URL}/api/repos/${owner}/${repo}/capsule/export`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to export CAPSULE");
+  }
+
+  return response.json();
+}
+
+// ========================================
+// MCP Server API Functions
+// ========================================
+
+export interface MCPServerStatus {
+  status: "running" | "stopped";
+  tools: Array<{
+    name: string;
+    description: string;
+  }>;
+  cached_repos: string[];
+}
+
+// Starts the MCP server for AI tool integration
+export async function startMCPServer(port: number = 3001): Promise<{
+  status: string;
+  port: number;
+  tools: any[];
+}> {
+  const response = await fetch(`${BACKEND_URL}/api/mcp/start`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ port }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to start MCP server");
+  }
+
+  return response.json();
+}
+
+// Stops the MCP server
+export async function stopMCPServer(): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${BACKEND_URL}/api/mcp/stop`, {
+    method: "POST",
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to stop MCP server");
+  }
+
+  return response.json();
+}
+
+// Gets MCP server status
+export async function getMCPServerStatus(): Promise<MCPServerStatus> {
+  const response = await fetch(`${BACKEND_URL}/api/mcp/status`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to get MCP server status");
+  }
+
+  return response.json();
+}
+
+// Retrieves specific code from repository (MCP tool)
+export async function getCode(
+  owner: string,
+  repo: string,
+  filePath: string,
+  options: {
+    line_start?: number;
+    line_end?: number;
+    function_name?: string;
+  } = {}
+): Promise<{
+  status: string;
+  code: {
+    file_path: string;
+    content: string;
+    line_count: number;
+    line_range: { start: number; end: number };
+    encoding: string;
+  };
+}> {
+  const params = new URLSearchParams({
+    file_path: filePath,
+    ...(options.line_start && { line_start: options.line_start.toString() }),
+    ...(options.line_end && { line_end: options.line_end.toString() }),
+    ...(options.function_name && { function_name: options.function_name }),
+  });
+
+  const response = await fetch(`${BACKEND_URL}/api/repos/${owner}/${repo}/code?${params.toString()}`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to retrieve code");
+  }
+
+  return response.json();
+}
+
+// Gets current task state registry from CAPSULE (MCP tool)
+export async function getStateRegistry(
+  owner: string,
+  repo: string,
+  taskFilter: "all" | "in_progress" | "blocked" = "all"
+): Promise<{
+  status: string;
+  state_registry: {
+    repo_id: string;
+    task_filter: string;
+    total_tasks: number;
+    filtered_count: number;
+    tasks: StateRegistryEntry[];
+    state_summary: Record<string, number>;
+  };
+}> {
+  const params = new URLSearchParams({ task_filter: taskFilter });
+  const response = await fetch(`${BACKEND_URL}/api/repos/${owner}/${repo}/state-registry?${params.toString()}`);
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Failed to retrieve state registry");
+  }
+
+  return response.json();
+}

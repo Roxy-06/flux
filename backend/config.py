@@ -1,5 +1,5 @@
 # Application configuration and environment variable management using Pydantic Settings.
-
+#this application configures the application
 import json
 import os
 from pathlib import Path

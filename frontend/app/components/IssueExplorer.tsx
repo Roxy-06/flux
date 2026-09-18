@@ -25,7 +25,7 @@ interface IssueExplorerProps {
   owner: string;
   repo: string;
   onSelectFile: (filePath: string) => void;
-  onPrepareAgentHandoff?: (issue: IssueSummary, explanation: IssueExplanation) => void;
+  onHighlightIssue?: (issue: IssueSummary) => void;
 }
 
 // Extracts error message string safely from unknown error.
@@ -37,7 +37,7 @@ export default function IssueExplorer({
   owner,
   repo,
   onSelectFile,
-  onPrepareAgentHandoff,
+  onHighlightIssue,
 }: IssueExplorerProps) {
   const [issues, setIssues] = useState<IssueSummary[]>([]);
   const [availableLabels, setAvailableLabels] = useState<IssueLabel[]>([]);
@@ -100,15 +100,20 @@ export default function IssueExplorer({
   );
 
   useEffect(() => {
-    void loadIssues();
+    const timer = window.setTimeout(() => {
+      void loadIssues();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [loadIssues]);
 
   useEffect(() => {
     if (!selectedIssue) return;
 
     let isMounted = true;
-    setExplaining(true);
-    setExplanationError(null);
+    const timer = window.setTimeout(() => {
+      setExplaining(true);
+      setExplanationError(null);
+    }, 0);
 
     explainIssue(owner, repo, selectedIssue.number)
       .then((data) => {
@@ -128,6 +133,7 @@ export default function IssueExplorer({
 
     return () => {
       isMounted = false;
+      window.clearTimeout(timer);
     };
   }, [owner, repo, selectedIssue]);
 
@@ -326,14 +332,15 @@ export default function IssueExplorer({
                       <ExternalLink className="w-4 h-4" />
                     </a>
 
-                    {onPrepareAgentHandoff && explanation && (
+                    {/* Read-only visualization actions */}
+                    {explanation && onHighlightIssue && (
                       <button
                         type="button"
-                        onClick={() => onPrepareAgentHandoff(selectedIssue, explanation)}
-                        className="btn-terracotta px-4 py-2.5 text-xs flex items-center gap-2 cursor-pointer shadow-md"
+                        onClick={() => onHighlightIssue(selectedIssue)}
+                        className="btn-white px-4 py-2.5 text-xs flex items-center gap-2 cursor-pointer shadow-md border border-[#df7d4c] text-[#df7d4c] hover:bg-[#df7d4c]/5"
                       >
-                        <Bot className="w-4 h-4" />
-                        <span>Solve with Agent</span>
+                        <CircleDot className="w-4 h-4" />
+                        <span>Highlight in Graph</span>
                       </button>
                     )}
                   </div>
