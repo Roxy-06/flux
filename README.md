@@ -1,4 +1,4 @@
-# Amica
+# FLux
 
 Context portability layer for AI coding tools powered by Tree-sitter AST analysis, NetworkX graph theory, Google Gemini, and the CAPSULE system for seamless project state transfer.
 
